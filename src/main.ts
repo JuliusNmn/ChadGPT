@@ -1,7 +1,7 @@
 import './style.scss'
 import { Engine } from './engine/Engine'
 import { Demo } from './demo/Demo'
-
+/*
 new Engine({
   canvas: document.querySelector('#canvas') as HTMLCanvasElement,
   experience: Demo,
@@ -13,3 +13,6 @@ new Engine({
     title: 'A cube on a plane',
   },
 })
+*/
+let d = new Demo(document.querySelector('#canvas') as HTMLCanvasElement)
+d.init()
