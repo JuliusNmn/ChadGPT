@@ -41,22 +41,22 @@ export class Buddy {
 
     const headShape = new CANNON.Sphere(headRadius)
     const upperArmShape = new CANNON.Box(
-      new CANNON.Vec3(upperArmLength * 0.5, upperArmSize * 0.5, upperArmSize * 0.5)
+      new CANNON.Vec3(upperArmLength * 0.5, upperArmSize * 0.5, upperArmSize * 0.5 - jointPadding)
     )
     const lowerArmShape = new CANNON.Box(
-      new CANNON.Vec3(lowerArmLength * 0.5, lowerArmSize * 0.5, lowerArmSize * 0.5)
+      new CANNON.Vec3(lowerArmLength * 0.5, lowerArmSize * 0.5, lowerArmSize * 0.5 - jointPadding)
     )
     const upperBodyShape = new CANNON.Box(
-      new CANNON.Vec3(shouldersDistance * 0.5, lowerArmSize * 0.5, upperBodyLength * 0.5)
+      new CANNON.Vec3(shouldersDistance * 0.5, lowerArmSize * 0.5, upperBodyLength * 0.5 - jointPadding)
     )
     const pelvisShape = new CANNON.Box(
-      new CANNON.Vec3(shouldersDistance * 0.5, lowerArmSize * 0.5, pelvisLength * 0.5)
+      new CANNON.Vec3(shouldersDistance * 0.5, lowerArmSize * 0.5, pelvisLength * 0.5 - jointPadding)
     )
     const upperLegShape = new CANNON.Box(
-      new CANNON.Vec3(upperLegSize * 0.5, lowerArmSize * 0.5, upperLegLength * 0.5)
+      new CANNON.Vec3(upperLegSize * 0.5, lowerArmSize * 0.5, upperLegLength * 0.5 - jointPadding)
     )
     const lowerLegShape = new CANNON.Box(
-      new CANNON.Vec3(lowerLegSize * 0.5, lowerArmSize * 0.5, lowerLegLength * 0.5)
+      new CANNON.Vec3(lowerLegSize * 0.5, lowerArmSize * 0.5, lowerLegLength * 0.5 - jointPadding)
     )
     
 
@@ -266,28 +266,47 @@ export class Buddy {
     constraints.push(rightElbowJoint)
 
     // add springs
-    const legSpringLength = 0.1
-    const legSpringStiffness = 100
-    const legSpringDamping = 10
-    this.muscleInterface.muscles.push(new Muscle(upperLeftLeg, lowerLeftLeg, {
-      localAnchorA: new CANNON.Vec3(0, lowerLegSize, 0),
-      localAnchorB: new CANNON.Vec3(0, lowerLegSize, 0),
-      restLength: (lowerLegLength + upperLegLength) * 0.5 * legSpringLength,
-      stiffness: legSpringStiffness ,
-      damping: legSpringDamping,
-    }))
+    const muscleParams = {
+      stiffness: 75,
+      damping: 10
+    }
+    // lower leg muscles
+    this.createMusclesFrontBack(upperLeftLeg, lowerLeftLeg, upperLegLength, lowerLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
+    this.createMusclesFrontBack(upperRightLeg, lowerRightLeg, upperLegLength, lowerLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
 
-    this.muscleInterface.muscles.push(new Muscle(upperRightLeg, lowerRightLeg, {
-      localAnchorA: new CANNON.Vec3(0, lowerLegSize, 0),
-      localAnchorB: new CANNON.Vec3(0, lowerLegSize, 0),
-      restLength: (lowerLegLength + upperLegLength) * 0.5 * legSpringLength,
-      stiffness: legSpringStiffness ,
-      damping: legSpringDamping,
-    }))
+     // upper leg muscles
+     this.createMusclesFrontBack(pelvis, upperLeftLeg, pelvisLength, upperLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams, new CANNON.Vec3( shouldersDistance / 2, 0, 0))
+    this.createMusclesFrontBack(pelvis, upperRightLeg, pelvisLength, upperLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams, new CANNON.Vec3( -shouldersDistance / 2, 0, 0))
+
+
+
+    // left = local x positive
 
     
     this.bodies = bodies
     this.constraints = constraints
+  }
+
+  createMusclesFrontBack(bodyA: CANNON.Body, bodyB: CANNON.Body, bodyALength: number, bodyBLength: number, offset: CANNON.Vec3, params: {
+    stiffness: number,
+    damping: number
+  }, bodyAOffset: CANNON.Vec3 = new CANNON.Vec3(0,0,0), bodyBOffset: CANNON.Vec3 = new CANNON.Vec3(0,0,0)) {
+    const muscleParamsFront = {
+      localAnchorA: offset.vadd(bodyAOffset),
+      localAnchorB: offset.vadd(bodyBOffset) ,
+      restLength: (bodyALength + bodyBLength) * 0.5,
+      stiffness: params.stiffness ,
+      damping: params.damping,
+    }
+    const muscleParamsBack = {
+      localAnchorA: bodyAOffset.vadd(offset.scale(-1)),
+      localAnchorB: bodyBOffset.vadd(offset.scale(-1)),
+      restLength: (bodyALength + bodyBLength) * 0.5 * 0.9,
+      stiffness: params.stiffness ,
+      damping: params.damping,
+    }
+    this.muscleInterface.muscles.push(new Muscle(bodyA, bodyB, muscleParamsFront))
+    this.muscleInterface.muscles.push(new Muscle(bodyA, bodyB, muscleParamsBack))
   }
 }
 
@@ -322,20 +341,58 @@ export class Muscle extends CANNON.Spring {
 export class Physics {
   world: CANNON.World = new CANNON.World()
   bodies: CANNON.Body[] = []
-  
+  buddy: Buddy | undefined
+  muscles: Muscle[] = []
+  lastCallTime: number = 0
   constructor() {
-    this.world.gravity = new CANNON.Vec3(0,-9.81,0)
+    this.world.gravity = new CANNON.Vec3(0,-10,0);//-9.81,0)
   }
 
+  update = () => {
+    // Step world
+    const timeStep = 1 / 60.0
+    const now = performance.now() / 1000
+
+    if (this.lastCallTime == 0) {
+      this.lastCallTime = now
+    }
+    if (!this.lastCallTime) {
+      // last call time not saved, cant guess elapsed time. Take a simple step.
+      this.world.step(timeStep)
+      this.lastCallTime = now
+      return
+    }
+
+    let timeSinceLastCall = now - this.lastCallTime
+    
+    let maxSubSteps = 20
+    this.world.step(timeStep, timeSinceLastCall, maxSubSteps)
+
+    this.lastCallTime = now
+    if (this.buddy){
+      for (var i = 0; i < this.buddy.muscleInterface.muscles.length; i++) {
+        this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (i+1)) + 1)
+      }
+    }
+    
+  }
+
+
+
+  step() {
+
+  }
 
 }
 
 export class Demo  {
   resources: Resource[] = []
   visuals: THREE.Object3D[] = []
+  springs: THREE.Line[] = []
   scene: THREE.Scene 
-  
-  jointPosition = 0.5
+  muscleTo3DLine: Map<Muscle, THREE.Line> = new Map()
+  lllfc = 1
+
   lastCallTime: number = 0
   particleMaterial: THREE.MeshLambertMaterial
   triggerMaterial: THREE.MeshBasicMaterial
@@ -393,7 +450,8 @@ export class Demo  {
     this.scene.add(directionalLight)
 
     const gui = new GUI();
-    gui.add(this, "jointPosition", 0, 1, 0.01);
+    // lllfc (lowerLeftLegFrontContraction)
+    gui.add(this, "lllfc", 0, 1, 0.01);
 
     // Start the loop!
     this.animate()
@@ -403,14 +461,14 @@ export class Demo  {
     document.addEventListener('keypress', this.onKeyPress)
 
     const buddy = new Buddy(3,
-      Math.PI / 4,
+      Math.PI / 2,
       Math.PI / 3,
       Math.PI / 8)
-
+      this.physics.buddy = (buddy)
       buddy.bodies.forEach((body: CANNON.Body) => {
       // Move the ragdoll up
-      const position = new CANNON.Vec3(0, 5, 0)
-      let rotate = new CANNON.Quaternion(Math.PI, 0, 0)
+      const position = new CANNON.Vec3(0, 3, 0)
+      //let rotate = new CANNON.Quaternion(Math.PI, 0, 0)
       body.quaternion.setFromEuler(-Math.PI * 0.5, 0, 0)
       body.quaternion.vmult(body.position, body.position)
       body.position.vadd(position, body.position)
@@ -419,6 +477,20 @@ export class Demo  {
       this.physics.world.addBody(body)
       this.addVisual(body)
     })
+
+    for (const muscle of buddy.muscleInterface.muscles) {
+        //create a blue LineBasicMaterial
+        const material = new THREE.LineBasicMaterial( { color: 0x0000ff } )
+        const points = []
+        points.push( new THREE.Vector3( 0, 0, 0 ) )
+        points.push( new THREE.Vector3( 0, 0, 0 ) )
+
+        const geometry = new THREE.BufferGeometry().setFromPoints( points )
+        const line = new THREE.Line( geometry, material )
+        this.springs.push(line)
+        this.scene.add( line )
+        this.muscleTo3DLine.set(muscle, line)
+    }
 
     buddy.constraints.forEach((constraint) => {
       this.physics.world.addConstraint(constraint)
@@ -525,32 +597,12 @@ export class Demo  {
 
   animate = () => {
     requestAnimationFrame(this.animate)
-      this.updatePhysics()
+      this.physics.update()
       this.updateVisuals()
     this.renderer.render(this.scene, this.camera)
   }
 
-  updatePhysics = () => {
-    // Step world
-    const timeStep = 1 / 60.0
-
-    const now = performance.now() / 1000
-
-    if (!this.lastCallTime) {
-      // last call time not saved, cant guess elapsed time. Take a simple step.
-      this.physics.world.step(timeStep)
-      this.lastCallTime = now
-      return
-    }
-
-    let timeSinceLastCall = now - this.lastCallTime
-    
-    let maxSubSteps = 20
-    this.physics.world.step(timeStep, timeSinceLastCall, maxSubSteps)
-
-    this.lastCallTime = now
-  }
-
+  
   updateVisuals = () => {
     // Copy position data into visuals
     for (let i = 0; i < this.physics.bodies.length; i++) {
@@ -561,6 +613,11 @@ export class Demo  {
       visual.position.copy(v2v(position))
       visual.quaternion.copy(q2q(quaternion))
       
+    }
+    for (const [muscle, line] of this.muscleTo3DLine.entries()) {
+      const pointA = muscle.bodyA.position.vadd(muscle.bodyA.quaternion.vmult( muscle.localAnchorA))
+      const pointB = muscle.bodyB.position.vadd(muscle.bodyB.quaternion.vmult( muscle.localAnchorB))
+      line.geometry.setFromPoints([v2v(pointA), v2v(pointB)])
     }
     /*
     // Render contacts
