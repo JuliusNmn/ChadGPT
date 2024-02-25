@@ -18,9 +18,11 @@ export function q2q(v: CANNON.Quaternion) {
 }
 export class Buddy {
   muscleInterface: LowLevelMuscleInteraction = new LowLevelMuscleInteraction()
-  createRagdoll(scale: number, angle: number, angleShoulders: number, twistAngle: number) {
-    const bodies = []
-    const constraints = []
+  bodies: CANNON.Body[] = []
+  constraints: CANNON.Constraint[] = []
+  constructor(scale: number, angle: number, angleShoulders: number, twistAngle: number) {
+    var bodies = []
+    var constraints = []
     const shouldersDistance = 0.5 * scale
     const upperArmLength = 0.4 * scale
     const lowerArmLength = 0.4 * scale
@@ -93,11 +95,6 @@ export class Buddy {
     upperRightLeg.addShape(upperLegShape)
     bodies.push(upperLeftLeg)
     bodies.push(upperRightLeg)
-
-
-    
-    
-
     
     // Pelvis
     const pelvis = new CANNON.Body({
@@ -289,8 +286,8 @@ export class Buddy {
     }))
 
     
-    
-    return { bodies, constraints, springs }
+    this.bodies = bodies
+    this.constraints = constraints
   }
 }
 
@@ -405,15 +402,12 @@ export class Demo  {
     window.addEventListener('resize', this.resize)
     document.addEventListener('keypress', this.onKeyPress)
 
-
-    const { bodies, constraints } = this.physics.createRagdoll(
-      3,
+    const buddy = new Buddy(3,
       Math.PI / 4,
       Math.PI / 3,
-      Math.PI / 8
-    )
+      Math.PI / 8)
 
-    bodies.forEach((body: CANNON.Body) => {
+      buddy.bodies.forEach((body: CANNON.Body) => {
       // Move the ragdoll up
       const position = new CANNON.Vec3(0, 5, 0)
       let rotate = new CANNON.Quaternion(Math.PI, 0, 0)
@@ -426,10 +420,15 @@ export class Demo  {
       this.addVisual(body)
     })
 
-    constraints.forEach((constraint) => {
+    buddy.constraints.forEach((constraint) => {
       this.physics.world.addConstraint(constraint)
     })
-    
+
+    this.physics.world.addEventListener('postStep', () => {
+      for (const spring of buddy.muscleInterface.muscles) {
+          spring.applyForce()
+      }
+    })
   }
 
   addVisual(body: CANNON.Body) {
