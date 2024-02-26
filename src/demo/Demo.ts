@@ -441,6 +441,7 @@ export class Demo  {
   renderer: THREE.WebGLRenderer
   camera: THREE.PerspectiveCamera
   physics: Physics
+  gravity = 0
   constructor(canvas: HTMLCanvasElement) {
     this.physics = new Physics()
     this.scene = new THREE.Scene()
@@ -490,7 +491,7 @@ export class Demo  {
 
     const gui = new GUI();
     // lllfc (lowerLeftLegFrontContraction)
-    gui.add(this, "lllfc", 0, 1, 0.01);
+    gui.add(this, "gravity", -50, 1, 0.01);
 
     // Start the loop!
     this.animate()
@@ -660,6 +661,8 @@ export class Demo  {
       const mat = (line.material as THREE.LineBasicMaterial)
       mat.color = new THREE.Color(1 - muscle.currentContraction, 0, muscle.currentContraction)
     }
+
+    this.physics.world.gravity = new CANNON.Vec3(0,this.gravity,0);//-9.81,0)
     /*
     // Render contacts
     this.contactMeshCache.restart()
