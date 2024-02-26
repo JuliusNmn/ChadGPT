@@ -345,9 +345,10 @@ export class LowLevelMuscleInteraction {
 }
 export class Muscle extends CANNON.Spring {
   normalRestLength: number
-  
+  currentContraction: number = 1
   setContraction(factor: number) {
    this.restLength = this.normalRestLength * factor
+   this.currentContraction = factor;
   }
 
   constructor(bodyA: CANNON.Body, bodyB: CANNON.Body, options?: {
@@ -643,6 +644,8 @@ export class Demo  {
       const pointA = muscle.bodyA.position.vadd(muscle.bodyA.quaternion.vmult( muscle.localAnchorA))
       const pointB = muscle.bodyB.position.vadd(muscle.bodyB.quaternion.vmult( muscle.localAnchorB))
       line.geometry.setFromPoints([v2v(pointA), v2v(pointB)])
+      const mat = (line.material as THREE.LineBasicMaterial)
+      mat.color = new THREE.Color(1 - muscle.currentContraction, 0, muscle.currentContraction)
     }
     /*
     // Render contacts
