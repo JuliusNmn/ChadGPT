@@ -397,7 +397,7 @@ export class Physics {
     this.lastCallTime = now
     if (this.buddy){
       for (var i = 0; i < this.buddy.muscleInterface.muscles.length; i++) {
-        this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * ((i+1) % 5) + 3) + 1)
+        this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (3 + i / 3) * ((i % 2) * 2 - 1)) + 1)
       }
     }
     
