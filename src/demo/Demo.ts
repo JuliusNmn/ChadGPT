@@ -225,22 +225,35 @@ export class Buddy {
       twistAngle,
     })
     constraints.push(spineJoint)
-
+    /*
+    const leftShoulder = new CANNON.PointToPointConstraint(
+      upperBody,
+      new CANNON.Vec3(shouldersDistance / 2, 0, upperBodyLength / 2),
+      upperLeftArm,
+      new CANNON.Vec3(-upperArmLength / 2, 0, 0),
+    )
+    const rightShoulder = new CANNON.PointToPointConstraint(
+      upperBody,
+      new CANNON.Vec3(-shouldersDistance / 2, 0, upperBodyLength / 2),
+      upperRightArm,
+      new CANNON.Vec3(upperArmLength / 2, 0, 0),
+    )*/
     // Shoulders
     const leftShoulder = new CANNON.ConeTwistConstraint(upperBody, upperLeftArm, {
       pivotA: new CANNON.Vec3(shouldersDistance / 2, 0, upperBodyLength / 2),
       pivotB: new CANNON.Vec3(-upperArmLength / 2, 0, 0),
       axisA: CANNON.Vec3.UNIT_X,
       axisB: CANNON.Vec3.UNIT_X,
-      angle: angleShoulders,
+      angle: Math.PI,
+      twistAngle: Math.PI / 2
     })
     const rightShoulder = new CANNON.ConeTwistConstraint(upperBody, upperRightArm, {
       pivotA: new CANNON.Vec3(-shouldersDistance / 2, 0, upperBodyLength / 2),
       pivotB: new CANNON.Vec3(upperArmLength / 2, 0, 0),
       axisA: CANNON.Vec3.UNIT_X,
       axisB: CANNON.Vec3.UNIT_X,
-      angle: angleShoulders,
-      twistAngle,
+      angle: Math.PI,
+      twistAngle: Math.PI / 2
     })
     constraints.push(leftShoulder)
     constraints.push(rightShoulder)
@@ -371,7 +384,7 @@ export class Physics {
   muscles: Muscle[] = []
   lastCallTime: number = 0
   constructor() {
-    this.world.gravity = new CANNON.Vec3(0,-10,0);//-9.81,0)
+    this.world.gravity = new CANNON.Vec3(0,-0,0);//-9.81,0)
   }
 
   update = () => {
