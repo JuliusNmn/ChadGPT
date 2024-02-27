@@ -21,13 +21,16 @@
   },
   "devDependencies": {
     "@types/three": "^0.156.0",
+    "cannon-es": "^0.20.0",
     "husky": "^8.0.3",
     "lint-staged": "^13.3.0",
     "prettier": "2.8.8",
     "sass": "^1.69.0",
     "typescript": "^5.2.2",
     "vite": "^4.4.11",
-    "vite-plugin-glsl": "^1.1.2"
+    "vite-plugin-glsl": "^1.1.2",
+    "vite-plugin-top-level-await": "^1.4.1",
+    "vite-plugin-wasm": "^3.3.0"
   },
   "packageManager": "yarn@3.2.1",
   "lint-staged": {
