@@ -230,7 +230,6 @@ export class Buddy {
       angle: angle,
       twistAngle: twistAngle,
     })
-
     const rightFootJoint = new CANNON.ConeTwistConstraint(rightFoot, lowerRightLeg, {
       pivotA: new CANNON.Vec3(0, 0, heelRadius),
       pivotB: new CANNON.Vec3(0, 0, -lowerLegLength / 2),
@@ -340,7 +339,8 @@ export class Buddy {
     this.createMusclesFrontBack(lowerLeftLeg, leftFoot, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
     this.createMusclesFrontBack(lowerRightLeg, rightFoot, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
     // pitch
-    //this.createMusclesFrontBack(lowerLeftLeg, leftFoot, 1.1, new CANNON.Vec3(lowerLegSize, 0, 0), {stiffness: 20, damping: 5})
+    this.createMusclesFrontBack(lowerLeftLeg, leftFoot, 1, new CANNON.Vec3(lowerLegSize / 2, 0, 0), muscleParams)
+    this.createMusclesFrontBack(lowerRightLeg, rightFoot, 1, new CANNON.Vec3(lowerLegSize / 2, 0, 0), muscleParams)
 
     // upper leg muscles
     // quads
@@ -369,8 +369,8 @@ export class Buddy {
     this.createMusclesFrontBack(upperBody, upperLeftArm, 1, new CANNON.Vec3(0, upperArmSize, 0), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
     this.createMusclesFrontBack(upperBody, upperRightArm, 1, new CANNON.Vec3(0, upperArmSize, 0), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
     // up / down
-    this.createMusclesFrontBack(upperBody, upperLeftArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
-    this.createMusclesFrontBack(upperBody, upperRightArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
+    this.createMusclesFrontBack(upperBody, upperLeftArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 + upperArmSize / 2))
+    this.createMusclesFrontBack(upperBody, upperRightArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 + upperArmSize / 2))
 
 
     // left = local x positive
@@ -466,7 +466,9 @@ export class Physics {
     this.lastCallTime = now
     if (this.buddy){
       for (var i = 0; i < this.buddy.muscleInterface.muscles.length; i++) {
-        this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (3 + i / 3) * ((i % 2) * 2 - 1)) * 0.2 + 0.8)
+        //this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (3 + i / 3) * ((i % 2) * 2 - 1)) * 0.1 + 0.8)
+        this.buddy.muscleInterface.setMuscleContraction(i, 1)
+
       }
     }
     
@@ -497,7 +499,7 @@ export class Demo  {
   renderer: THREE.WebGLRenderer
   camera: THREE.PerspectiveCamera
   physics: Physics
-  gravity = 0
+  gravity = -9.81
   constructor(canvas: HTMLCanvasElement) {
     this.physics = new Physics()
     this.scene = new THREE.Scene()
