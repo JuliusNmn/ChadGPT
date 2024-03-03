@@ -37,6 +37,11 @@ export class Buddy {
     const lowerLegSize = 0.2 * scale
     const lowerLegLength = 0.5 * scale
 
+    const footLength = 0.15 * scale
+    const footWidth = 0.15 * scale
+    const footHeight = 0.05 * scale
+    const heelRadius = 0.1 * scale
+
     const jointPadding = 0.05 * scale
 
     const headShape = new CANNON.Sphere(headRadius)
@@ -58,6 +63,11 @@ export class Buddy {
     const lowerLegShape = new CANNON.Box(
       new CANNON.Vec3(lowerLegSize * 0.5, lowerArmSize * 0.5, lowerLegLength * 0.5 - jointPadding)
     )
+    const heelShape = new CANNON.Cylinder(heelRadius, heelRadius, footWidth, 8)
+    const footShape = new CANNON.Box(
+      new CANNON.Vec3(footWidth, footLength, footHeight)
+    )
+
     
 
     // Lower legs
@@ -96,6 +106,23 @@ export class Buddy {
     bodies.push(upperLeftLeg)
     bodies.push(upperRightLeg)
     
+    // feet 
+    const leftFoot = new CANNON.Body({
+      mass: 0.2,
+      position: new CANNON.Vec3(shouldersDistance / 2, 0,  lowerLeftLeg.position.z - lowerLegLength / 2 ),
+    })
+    leftFoot.addShape(heelShape, new CANNON.Vec3(0,heelRadius, 0), new CANNON.Quaternion().setFromEuler(0, 0, Math.PI / 2))
+    leftFoot.addShape(footShape, new CANNON.Vec3(0,- footLength / 2 - heelRadius,0))
+    bodies.push(leftFoot)
+    const rightFoot = new CANNON.Body({
+      mass: 0.2,
+      position: new CANNON.Vec3(-shouldersDistance / 2, 0,  lowerRightLeg.position.z - lowerLegLength / 2 ),
+    })
+    rightFoot.addShape(heelShape, new CANNON.Vec3(0,heelRadius, 0), new CANNON.Quaternion().setFromEuler(0, 0, Math.PI / 2))
+    rightFoot.addShape(footShape, new CANNON.Vec3(0,- footLength / 2 - heelRadius,0))
+    bodies.push(rightFoot)
+
+
     // Pelvis
     const pelvis = new CANNON.Body({
       mass: 1,
@@ -195,6 +222,27 @@ export class Buddy {
     constraints.push(leftKneeJoint)
     constraints.push(rightKneeJoint)
 
+    const leftFootJoint = new CANNON.ConeTwistConstraint(leftFoot, lowerLeftLeg, {
+      pivotA: new CANNON.Vec3(0, 0, heelRadius),
+      pivotB: new CANNON.Vec3(0, 0, -lowerLegLength / 2),
+      axisA: CANNON.Vec3.UNIT_Z,
+      axisB: CANNON.Vec3.UNIT_Z,
+      angle: angle,
+      twistAngle: twistAngle,
+    })
+
+    const rightFootJoint = new CANNON.ConeTwistConstraint(rightFoot, lowerRightLeg, {
+      pivotA: new CANNON.Vec3(0, 0, heelRadius),
+      pivotB: new CANNON.Vec3(0, 0, -lowerLegLength / 2),
+      axisA: CANNON.Vec3.UNIT_Z,
+      axisB: CANNON.Vec3.UNIT_Z,
+      angle: angle,
+      twistAngle: twistAngle,
+    })
+    constraints.push(leftFootJoint)
+    constraints.push(rightFootJoint)
+
+
     // Hip joints
     const leftHipJoint = new CANNON.ConeTwistConstraint(upperLeftLeg, pelvis, {
       pivotA: new CANNON.Vec3(0, 0, upperLegLength / 2),
@@ -280,42 +328,49 @@ export class Buddy {
 
     // add springs
     const muscleParams = {
-      stiffness: 75,
-      damping: 10
+      stiffness: 50,
+      damping: 5
     }
     // lower leg muscles
-    this.createMusclesFrontBack(upperLeftLeg, lowerLeftLeg, upperLegLength, lowerLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
-    this.createMusclesFrontBack(upperRightLeg, lowerRightLeg, upperLegLength, lowerLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
+    this.createMusclesFrontBack(upperLeftLeg, lowerLeftLeg, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
+    this.createMusclesFrontBack(upperRightLeg, lowerRightLeg, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
+
+    // foot muscles
+    // up / down
+    this.createMusclesFrontBack(lowerLeftLeg, leftFoot, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
+    this.createMusclesFrontBack(lowerRightLeg, rightFoot, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
+    // pitch
+    //this.createMusclesFrontBack(lowerLeftLeg, leftFoot, 1.1, new CANNON.Vec3(lowerLegSize, 0, 0), {stiffness: 20, damping: 5})
 
     // upper leg muscles
     // quads
-    this.createMusclesFrontBack(pelvis, upperLeftLeg, pelvisLength, upperLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams, new CANNON.Vec3( shouldersDistance / 2, 0, 0))
-    this.createMusclesFrontBack(pelvis, upperRightLeg, pelvisLength, upperLegLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams, new CANNON.Vec3( -shouldersDistance / 2, 0, 0))
+    this.createMusclesFrontBack(pelvis, upperLeftLeg, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams, new CANNON.Vec3( shouldersDistance / 2, 0, 0))
+    this.createMusclesFrontBack(pelvis, upperRightLeg, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams, new CANNON.Vec3( -shouldersDistance / 2, 0, 0))
     
     // spread / close
-    this.createMusclesFrontBack(pelvis, upperLeftLeg, pelvisLength, upperLegLength, new CANNON.Vec3(lowerLegSize, 0, 0), muscleParams, new CANNON.Vec3( shouldersDistance / 2, 0, 0))
-    this.createMusclesFrontBack(pelvis, upperRightLeg, pelvisLength, upperLegLength, new CANNON.Vec3(-lowerLegSize, 0, 0), muscleParams, new CANNON.Vec3( -shouldersDistance / 2, 0, 0))
+    this.createMusclesFrontBack(pelvis, upperLeftLeg, 1, new CANNON.Vec3(lowerLegSize, 0, 0), muscleParams, new CANNON.Vec3( shouldersDistance / 2, 0, 0))
+    this.createMusclesFrontBack(pelvis, upperRightLeg, 1, new CANNON.Vec3(-lowerLegSize, 0, 0), muscleParams, new CANNON.Vec3( -shouldersDistance / 2, 0, 0))
     
     // lower body
     // abs / lower back
-    this.createMusclesFrontBack(upperBody, pelvis, upperBodyLength, pelvisLength, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
+    this.createMusclesFrontBack(upperBody, pelvis, 1, new CANNON.Vec3(0, lowerLegSize, 0), muscleParams)
     // side
-    this.createMusclesFrontBack(upperBody, pelvis, upperBodyLength, pelvisLength, new CANNON.Vec3(shouldersDistance / 2, 0, 0), muscleParams)
+    this.createMusclesFrontBack(upperBody, pelvis, 1, new CANNON.Vec3(shouldersDistance / 2, 0, 0), muscleParams)
 
     // arms
     // elbows (biceps / triceps)
-    this.createMusclesFrontBack(upperLeftArm, lowerLeftArm, upperArmLength, lowerArmLength, new CANNON.Vec3(0, 0, upperArmSize), muscleParams)
-    this.createMusclesFrontBack(upperRightArm, lowerRightArm, upperArmLength, lowerArmLength, new CANNON.Vec3(0, 0, upperArmSize), muscleParams)
+    this.createMusclesFrontBack(upperLeftArm, lowerLeftArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams)
+    this.createMusclesFrontBack(upperRightArm, lowerRightArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams)
     // illegal elbows
     //this.createMusclesFrontBack(upperLeftArm, lowerLeftArm, upperArmLength, lowerArmLength, new CANNON.Vec3(0, upperArmSize, 0), muscleParams)
 
     // shoulders
     // front / back
-    this.createMusclesFrontBack(upperBody, upperLeftArm, shouldersDistance, upperArmLength, new CANNON.Vec3(0, upperArmSize, 0), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
-    this.createMusclesFrontBack(upperBody, upperRightArm, shouldersDistance, upperArmLength, new CANNON.Vec3(0, upperArmSize, 0), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
+    this.createMusclesFrontBack(upperBody, upperLeftArm, 1, new CANNON.Vec3(0, upperArmSize, 0), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
+    this.createMusclesFrontBack(upperBody, upperRightArm, 1, new CANNON.Vec3(0, upperArmSize, 0), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
     // up / down
-    this.createMusclesFrontBack(upperBody, upperLeftArm, shouldersDistance, upperArmLength, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
-    this.createMusclesFrontBack(upperBody, upperRightArm, shouldersDistance, upperArmLength, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
+    this.createMusclesFrontBack(upperBody, upperLeftArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
+    this.createMusclesFrontBack(upperBody, upperRightArm, 1, new CANNON.Vec3(0, 0, upperArmSize), muscleParams, new CANNON.Vec3(0, 0, upperBodyLength / 2 - upperArmSize))
 
 
     // left = local x positive
@@ -325,21 +380,22 @@ export class Buddy {
     this.constraints = constraints
   }
 
-  createMusclesFrontBack(bodyA: CANNON.Body, bodyB: CANNON.Body, bodyALength: number, bodyBLength: number, offset: CANNON.Vec3, params: {
+  createMusclesFrontBack(bodyA: CANNON.Body, bodyB: CANNON.Body, relaxFactor: number, offset: CANNON.Vec3, params: {
     stiffness: number,
     damping: number
   }, bodyAOffset: CANNON.Vec3 = new CANNON.Vec3(0,0,0), bodyBOffset: CANNON.Vec3 = new CANNON.Vec3(0,0,0)) {
+    const restLength = bodyA.position.vadd(bodyAOffset).vsub(bodyB.position.vadd(bodyBOffset)).length()
     const muscleParamsFront = {
       localAnchorA: offset.vadd(bodyAOffset),
       localAnchorB: offset.vadd(bodyBOffset) ,
-      restLength: (bodyALength + bodyBLength) * 0.5,
+      restLength: restLength * relaxFactor,
       stiffness: params.stiffness ,
       damping: params.damping,
     }
     const muscleParamsBack = {
       localAnchorA: bodyAOffset.vadd(offset.scale(-1)),
       localAnchorB: bodyBOffset.vadd(offset.scale(-1)),
-      restLength: (bodyALength + bodyBLength) * 0.5 * 0.9,
+      restLength: restLength * relaxFactor,
       stiffness: params.stiffness ,
       damping: params.damping,
     }
@@ -410,7 +466,7 @@ export class Physics {
     this.lastCallTime = now
     if (this.buddy){
       for (var i = 0; i < this.buddy.muscleInterface.muscles.length; i++) {
-        this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (3 + i / 3) * ((i % 2) * 2 - 1)) + 1)
+        this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (3 + i / 3) * ((i % 2) * 2 - 1)) * 0.2 + 0.8)
       }
     }
     
