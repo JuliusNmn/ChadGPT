@@ -16,6 +16,7 @@
   },
   "type": "module",
   "dependencies": {
+    "@tensorflow/tfjs": "^4.17.0",
     "lil-gui": "^0.18.2",
     "three": "^0.157.0"
   },
