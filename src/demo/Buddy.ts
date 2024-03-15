@@ -1,12 +1,40 @@
 import * as CANNON from 'cannon-es'
+import * as tf from '@tensorflow/tfjs'
 
+export class Brain {
+  io: HumanIO
+  model: tf.Sequential
+  constructor(io: HumanIO){
+    this.io = io;
+    const stateInputDimension = this.io.getBodyState().length
+    const decisionOutputDimension = this.io.muscles.length;
+
+    this.model = tf.sequential();
+    const A = tf.randomNormal([stateInputDimension, decisionOutputDimension], 0, 0.1)
+    const B = tf.randomUniform([decisionOutputDimension], -0.5, 0.5)
+    this.model.add(tf.layers.dense({units: decisionOutputDimension, inputShape: [stateInputDimension], weights: [A, B]}))
+    this.model.add(tf.layers.softmax())
+  }
+
+  computeStep() {
+    const input = this.io.getBodyState();
+    
+    const inputTensor = tf.tensor([input]);
+    const newMuscleConctractions = this.model.predict(inputTensor) as tf.Tensor<tf.Rank>
+    const arr = newMuscleConctractions.dataSync();
+    this.io.setMuscleContractions(Array.from(arr))
+    
+  }
+
+}
 
 export class HumanIO {
 
     muscles: Muscle[] = []
 
     setMuscleContractions(contractions: number[]){
-        this.muscles.forEach((muscle, idx) => muscle.setContraction(contractions[idx]))
+      const factor = 10
+      this.muscles.forEach((muscle, idx) => muscle.setContraction(contractions[idx] * factor))
     }
 
     setMuscleContraction(muscle: number, factor: number) {
@@ -14,8 +42,7 @@ export class HumanIO {
     }
 
     addMuscle(mus : Muscle){
-        this.muscles.push(mus)
-
+      this.muscles.push(mus)
     }
 
     getBodyState() : number[] {
@@ -38,9 +65,12 @@ export class HumanIO {
 export class Muscle extends CANNON.Spring {
     normalRestLength: number
     currentContraction: number = 1
+    minimumContraction = 0
+    maximumContraction = 2
     setContraction(factor: number) {
-     this.restLength = this.normalRestLength * factor
-     this.currentContraction = factor;
+      const factorConstrained = Math.min(this.maximumContraction, Math.max(this.minimumContraction, factor))  
+      this.restLength = this.normalRestLength * factorConstrained
+      this.currentContraction = factor;
     }
   
     constructor(bodyA: CANNON.Body, bodyB: CANNON.Body, options?: {
@@ -58,6 +88,7 @@ export class Muscle extends CANNON.Spring {
   }
 export class Buddy {
     muscleInterface: HumanIO = new HumanIO()
+    brain: Brain
     bodies: CANNON.Body[] = []
     constraints: CANNON.Constraint[] = []
     constructor(scale: number, angle: number, angleShoulders: number, twistAngle: number) {
@@ -415,7 +446,7 @@ export class Buddy {
   
       // left = local x positive
   
-      
+      this.brain = new Brain(this.muscleInterface)
       this.bodies = bodies
       this.constraints = constraints
     }

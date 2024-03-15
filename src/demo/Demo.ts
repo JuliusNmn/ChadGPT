@@ -232,8 +232,9 @@ export class Demo  {
 
   animate = () => {
     requestAnimationFrame(this.animate)
-      this.physics.update()
-      this.updateVisuals()
+    this.physics.buddy?.brain.computeStep()
+    this.physics.update()
+    this.updateVisuals()
     this.renderer.render(this.scene, this.camera)
   }
 
