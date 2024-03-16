@@ -4,20 +4,27 @@ import * as tf from '@tensorflow/tfjs'
 export class Brain {
   io: HumanIO
   model: tf.Sequential
+
   constructor(io: HumanIO){
     this.io = io;
-    const stateInputDimension = this.io.getBodyState().length
+    const stateInputDimension = this.io.getBodyState().length + this.getImpulseGeneratorValues(0).length
+    console.log("input dim: " + stateInputDimension)
     const decisionOutputDimension = this.io.muscles.length;
 
     this.model = tf.sequential();
-    const A = tf.randomNormal([stateInputDimension, decisionOutputDimension], 0, 0.1)
-    const B = tf.randomUniform([decisionOutputDimension], -0.5, 0.5)
-    this.model.add(tf.layers.dense({units: decisionOutputDimension, inputShape: [stateInputDimension], weights: [A, B]}))
+    const hiddenLayer = 15;
+    const A1 = tf.randomNormal([stateInputDimension, hiddenLayer], 0, 0.5)
+    const B1 = tf.randomUniform([hiddenLayer], -0.5, 0.5)
+    this.model.add(tf.layers.dense({units: hiddenLayer, inputShape: [stateInputDimension], weights: [A1, B1]}))
+
+    const A2 = tf.randomNormal([hiddenLayer, decisionOutputDimension], 0, 0.5)
+    const B2 = tf.randomUniform([decisionOutputDimension], -0.5, 0.5)
+    this.model.add(tf.layers.dense({units: decisionOutputDimension, inputShape: [15], weights: [A2, B2]}))
     this.model.add(tf.layers.softmax())
   }
 
-  computeStep() {
-    const input = this.io.getBodyState();
+  computeStep(time: number) {
+    const input = this.io.getBodyState().concat(this.getImpulseGeneratorValues(time));
     
     const inputTensor = tf.tensor([input]);
     const newMuscleConctractions = this.model.predict(inputTensor) as tf.Tensor<tf.Rank>
@@ -26,6 +33,11 @@ export class Brain {
     
   }
 
+  getImpulseGeneratorValues(time: number): number[] {
+    return [Math.sin(time), Math.cos(time),
+      Math.sin(2 * time), Math.cos(2 * time),
+      Math.sin(3 * time), Math.cos(3 * time), ]
+  }
 }
 
 export class HumanIO {
@@ -48,14 +60,19 @@ export class HumanIO {
     getBodyState() : number[] {
 
         return this.muscles.flatMap( (m) => {
-            var rotA = new CANNON.Vec3();
-            var rotB = new CANNON.Vec3();
-            m.bodyA.quaternion.toEuler(rotA)
-            m.bodyB.quaternion.toEuler(rotB)
-
-            //TODO: If needed, delete the unneccesary muscles because theyre duplicate
-            return  [m.currentContraction].concat(rotA.vsub(rotB).toArray(), rotA.toArray(), 
-            rotB.toArray())
+              if (m.isFront){
+                var rotA = new CANNON.Vec3();
+                var rotB = new CANNON.Vec3();
+                m.bodyA.quaternion.toEuler(rotA)
+                m.bodyB.quaternion.toEuler(rotB)
+    
+                //TODO: If needed, delete the unneccesary muscles because theyre duplicate
+                return  [m.currentContraction].concat(rotA.vsub(rotB).toArray(), rotA.toArray(), 
+                rotB.toArray())
+              } else {
+                return [m.currentContraction]
+              }
+              
             }
             )
     }
@@ -67,13 +84,14 @@ export class Muscle extends CANNON.Spring {
     currentContraction: number = 1
     minimumContraction = 0
     maximumContraction = 2
+    isFront: boolean;
     setContraction(factor: number) {
       const factorConstrained = Math.min(this.maximumContraction, Math.max(this.minimumContraction, factor))  
       this.restLength = this.normalRestLength * factorConstrained
       this.currentContraction = factor;
     }
   
-    constructor(bodyA: CANNON.Body, bodyB: CANNON.Body, options?: {
+    constructor(bodyA: CANNON.Body, bodyB: CANNON.Body, isFront: boolean, options?: {
           restLength?: number;
           stiffness?: number;
           damping?: number;
@@ -84,6 +102,7 @@ export class Muscle extends CANNON.Spring {
       }) {
           super(bodyA, bodyB, options)
           this.normalRestLength = this.restLength
+          this.isFront = isFront
     }
   }
 export class Buddy {
@@ -471,8 +490,8 @@ export class Buddy {
         damping: params.damping,
       }
 
-      this.muscleInterface.addMuscle(new Muscle(bodyA, bodyB, muscleParamsFront))
-      this.muscleInterface.addMuscle(new Muscle(bodyA, bodyB, muscleParamsBack))
+      this.muscleInterface.addMuscle(new Muscle(bodyA, bodyB, true, muscleParamsFront))
+      this.muscleInterface.addMuscle(new Muscle(bodyA, bodyB, false, muscleParamsBack))
     }
   }
   

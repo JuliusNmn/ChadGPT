@@ -40,7 +40,6 @@ export class Physics {
           //this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (3 + i / 3) * ((i % 2) * 2 - 1)) * 0.1 + 0.8)
           this.buddy.muscleInterface.setMuscleContraction(i, 1)
         }
-        console.log(this.buddy.muscleInterface.muscles.length)
       }
       
     }

@@ -115,7 +115,7 @@ export class Demo  {
 
     for (const muscle of buddy.muscleInterface.muscles) {
         //create a blue LineBasicMaterial
-        const material = new THREE.LineBasicMaterial( { color: 0x0000ff } )
+        const material = new THREE.LineBasicMaterial( { color: 0x000000, linewidth: 10 } )
         const points = []
         points.push( new THREE.Vector3( 0, 0, 0 ) )
         points.push( new THREE.Vector3( 0, 0, 0 ) )
@@ -232,7 +232,7 @@ export class Demo  {
 
   animate = () => {
     requestAnimationFrame(this.animate)
-    this.physics.buddy?.brain.computeStep()
+    this.physics.buddy?.brain.computeStep(this.physics.world.time)
     this.physics.update()
     this.updateVisuals()
     this.renderer.render(this.scene, this.camera)
