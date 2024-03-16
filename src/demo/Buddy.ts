@@ -12,7 +12,7 @@ export class Brain {
     const decisionOutputDimension = this.io.muscles.length;
 
     this.model = tf.sequential();
-    const hiddenLayer = 15;
+    const hiddenLayer = 30;
     const A1 = tf.randomNormal([stateInputDimension, hiddenLayer], 0, 0.5)
     const B1 = tf.randomUniform([hiddenLayer], -0.5, 0.5)
     this.model.add(tf.layers.dense({units: hiddenLayer, inputShape: [stateInputDimension], weights: [A1, B1]}))
