@@ -1,37 +1,60 @@
 import * as CANNON from 'cannon-es'
 import * as tf from '@tensorflow/tfjs'
 
+
 export class Brain {
   io: HumanIO
   model: tf.Sequential
+  head: CANNON.Body
 
-  constructor(io: HumanIO){
-    this.io = io;
-    const stateInputDimension = this.io.getBodyState().length + this.getImpulseGeneratorValues(0).length
-    console.log("input dim: " + stateInputDimension)
-    const decisionOutputDimension = this.io.muscles.length;
 
-    this.model = tf.sequential();
+  initialize_brain(stateInputDimension: number, decisionOutputDimension: number) : tf.Sequential {
+
+    const model = tf.sequential();
     const hiddenLayer = 30;
     const A1 = tf.randomNormal([stateInputDimension, hiddenLayer], 0, 0.5)
     const B1 = tf.randomUniform([hiddenLayer], -0.5, 0.5)
-    this.model.add(tf.layers.dense({units: hiddenLayer, inputShape: [stateInputDimension], weights: [A1, B1]}))
+    model.add(tf.layers.dense({units: hiddenLayer, inputShape: [stateInputDimension], weights: [A1, B1]}))
 
     const A2 = tf.randomNormal([hiddenLayer, decisionOutputDimension], 0, 0.5)
     const B2 = tf.randomUniform([decisionOutputDimension], -0.5, 0.5)
-    this.model.add(tf.layers.dense({units: decisionOutputDimension, inputShape: [15], weights: [A2, B2], activation: 'relu'}))
-    this.model.add(tf.layers.softmax())
+    model.add(tf.layers.dense({units: decisionOutputDimension, inputShape: [15], weights: [A2, B2], activation: 'relu'}))
+    model.add(tf.layers.softmax())
+
+
+    console.log(model)
+    model.compile({
+      optimizer: "sgd", 
+      loss: "meanSquaredError", 
+      metrics: "accuracy"
+    })
+
+    return model
   }
 
-  computeStep(time: number) {
-    const input = this.io.getBodyState().concat(this.getImpulseGeneratorValues(time));
-    
+  constructor(io: HumanIO, head: CANNON.Body){
+    this.io = io;
+    this.head = head
+    //const stateInputDimension = this.io.getBodyState().length + this.getImpulseGeneratorValues(0).length
+    const stateInputDimension = this.io.getBodyState().length
+    console.log("input dim: " + stateInputDimension)
+    const decisionOutputDimension = this.io.muscles.length;
+    this.model = this.initialize_brain(stateInputDimension, decisionOutputDimension)
+
+
+  }
+
+
+  computeStep(time: Number) {
+    //const input = this.io.getBodyState().concat(this.getImpulseGeneratorValues(time));
+    const input = this.io.getBodyState()
     const inputTensor = tf.tensor([input]);
     const newMuscleConctractions = this.model.predict(inputTensor) as tf.Tensor<tf.Rank>
     const arr = newMuscleConctractions.dataSync();
     this.io.setMuscleContractions(Array.from(arr))
-    
+  
   }
+
 
   getImpulseGeneratorValues(time: number): number[] {
     return [Math.sin(time), Math.cos(time),
@@ -113,6 +136,7 @@ export class Buddy {
     constructor(scale: number, angle: number, angleShoulders: number, twistAngle: number) {
       var bodies = []
       var constraints = []
+      
       const shouldersDistance = 0.5 * scale
       const upperArmLength = 0.5 * scale
       const lowerArmLength = 0.5 * scale
@@ -235,6 +259,7 @@ export class Buddy {
         position: new CANNON.Vec3(0, 0, upperBody.position.z + upperBodyLength / 2 + headRadius + neckLength),
       })
       head.addShape(headShape)
+
       bodies.push(head)
   
       // Upper arms
@@ -465,7 +490,7 @@ export class Buddy {
   
       // left = local x positive
   
-      this.brain = new Brain(this.muscleInterface)
+      this.brain = new Brain(this.muscleInterface, head)
       this.bodies = bodies
       this.constraints = constraints
     }
@@ -492,6 +517,11 @@ export class Buddy {
 
       this.muscleInterface.addMuscle(new Muscle(bodyA, bodyB, true, muscleParamsFront))
       this.muscleInterface.addMuscle(new Muscle(bodyA, bodyB, false, muscleParamsBack))
+    }
+
+
+    getHeadPosition() : number | undefined {
+      return this.bodies.at(8)?.position.y
     }
   }
   

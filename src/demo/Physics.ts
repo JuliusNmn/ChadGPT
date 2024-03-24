@@ -35,12 +35,13 @@ export class Physics {
       this.world.step(timeStep, timeSinceLastCall, maxSubSteps)
   
       this.lastCallTime = now
-      if (this.buddy){
+      //TODO: This is unneccessary no?
+      /* if (this.buddy){
         for (var i = 0; i < this.buddy.muscleInterface.muscles.length; i++) {
           //this.buddy.muscleInterface.setMuscleContraction(i, Math.sin(now * (3 + i / 3) * ((i % 2) * 2 - 1)) * 0.1 + 0.8)
           this.buddy.muscleInterface.setMuscleContraction(i, 1)
         }
-      }
+      } */
       
     }
   
