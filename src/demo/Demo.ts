@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import * as CANNON from 'cannon-es'
 //import { Experience } from '../engine/Experience'
 import { Resource } from '../engine/Resources'
-import { Buddy, Muscle } from './Buddy'
+import { Brain, Buddy, Muscle } from './Buddy'
 import { Physics } from './Physics'
 
 import GUI from 'lil-gui'
@@ -19,7 +19,20 @@ export function q2q(v: CANNON.Quaternion) {
 }
 
 
+export class Learner {
+  brain : Brain[] = []
+  times : number[] = []
+
+  addBrain(brain: Brain, time: number){
+    this.brain.push(brain)
+    this.times.push(time)
+  }
+
+}
+
+
 export class Demo  {
+  pause: boolean = false
   resources: Resource[] = []
   visuals: THREE.Object3D[] = []
   visuals_map: Map<CANNON.Body, THREE.Object3D> = new Map()
@@ -27,7 +40,6 @@ export class Demo  {
   scene: THREE.Scene 
   muscleTo3DLine: Map<Muscle, THREE.Line> = new Map()
   lllfc = 1
-
   lastCallTime: number = 0
   particleMaterial: THREE.MeshLambertMaterial
   triggerMaterial: THREE.MeshBasicMaterial
@@ -97,8 +109,8 @@ export class Demo  {
 
     const buddy = this.physics.initializeBuddy()
     this.physics.buddy = buddy
-    this.addSpringVisuals(buddy)
     this.addVisuals(buddy.bodies, "buddy")
+    this.addSpringVisuals(buddy)
 
     this.physics.addEventListener('postStep', () => {
       for (const spring of buddy.muscleInterface.muscles) {
@@ -109,6 +121,7 @@ export class Demo  {
     // Start the loop!
     this.animate()
   }
+
 
   addSpringVisuals(buddy: Buddy){
     for (const muscle of buddy.muscleInterface.muscles) {
@@ -126,6 +139,15 @@ export class Demo  {
   }
   }
 
+  deleteSpringVisuals(buddy: Buddy){
+    for (const muscle of buddy.muscleInterface.muscles) {
+      const line = this.muscleTo3DLine.get(muscle)
+      if(line){
+        this.springs = []
+        this.scene.remove(line)
+      }
+    }
+  }
 
   deleteVisuals(bodies: CANNON.Body[]){
     for(let i = 0; i < bodies.length; i++){
@@ -141,15 +163,12 @@ export class Demo  {
       throw new Error('The argument passed to addVisual() is not a body')
     }
 
-    // if it's a particle paint it red, if it's a trigger paint it as green, otherwise just gray
-    const isParticle = body.shapes.every((s) => s instanceof CANNON.Particle)
-    const material = isParticle ? this.particleMaterial : body.isTrigger ? this.triggerMaterial : this.currentMaterial
 
-    // get the correspondant three.js mesh
-    const mesh = this.bodyToMesh(body, material)
-
+    const toDeleteMesh = this.visuals_map.get(body)
     this.visuals_map.delete(body)
-    this.scene.remove(mesh)
+    if (toDeleteMesh){
+      this.scene.remove(toDeleteMesh)
+    }
   }
 
   addVisuals(bodies: CANNON.Body[], name: string){
@@ -182,16 +201,13 @@ export class Demo  {
 
     //this.physics.bodies.push(body)
     this.visuals_map.set(body, mesh)
-    this.visuals.push(mesh)
-
     this.scene.add(mesh)
   }
 
   onKeyPress = (event: KeyboardEvent) => {
     switch (event.code) {
       case 'Space': 
-        console.debug("yyaya");
-        break
+        this.pause = !this.pause
     }
   }
 
@@ -261,12 +277,28 @@ export class Demo  {
     this.physics.update()
     this.updateVisuals()
     this.renderer.render(this.scene, this.camera)
-
-    if(this.physics.time > 5.0){
-      if(this.physics.buddy){
-        this.deleteVisuals(this.physics.buddy?.bodies)
-        this.physics.deleteBuddy()
+    if(this.physics.buddy){
+      const headPosition = this.physics.buddy.getHeadPosition()
+      console.log(headPosition)
+      if(headPosition && headPosition < 6){
+          this.learner.addBrain(brain, this.physics.time)
+          this.respawnBuddy()
+          this.physics.time = 0
       }
+    }
+  }
+
+  respawnBuddy(){
+    if(this.physics.buddy){
+      this.deleteSpringVisuals(this.physics.buddy)
+      this.deleteVisuals(this.physics.buddy?.bodies)
+      this.physics.deleteBuddy()
+
+      const buddy = this.physics.initializeBuddy()
+      this.physics.buddy = buddy
+      this.addVisuals(buddy.bodies, "buddy")
+      this.addSpringVisuals(buddy)
+
     }
 
   }
@@ -276,7 +308,6 @@ export class Demo  {
     // Copy position data into visuals
     for (let i = 0; i < this.physics.bodies.length; i++) {
       const body = this.physics.bodies[i]
-      //const visual = this.visuals[i]
       const visual = this.visuals_map.get(body)
       if(visual){
         let position = body.interpolatedPosition

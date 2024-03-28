@@ -36,7 +36,7 @@ export class Physics extends CANNON.World{
         Math.PI / 8)
       
       buddy.bodies.forEach((body: CANNON.Body) => {
-        const position = new CANNON.Vec3(0, 3, 0)
+        const position = new CANNON.Vec3(0, 1.25, 0)
         body.quaternion.setFromEuler(-Math.PI * 0.5, 0, 0)
         body.quaternion.vmult(body.position, body.position)
         body.position.vadd(position, body.position)    

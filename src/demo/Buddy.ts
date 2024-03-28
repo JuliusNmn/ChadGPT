@@ -12,14 +12,13 @@ export class Brain {
 
     const model = tf.sequential();
     const hiddenLayer = 30;
-    const A1 = tf.randomNormal([stateInputDimension, hiddenLayer], 0, 0.5)
+    const A1 = tf.randomNormal([stateInputDimension, hiddenLayer], -0.5, 0.5)
     const B1 = tf.randomUniform([hiddenLayer], -0.5, 0.5)
     model.add(tf.layers.dense({units: hiddenLayer, inputShape: [stateInputDimension], weights: [A1, B1]}))
 
     const A2 = tf.randomNormal([hiddenLayer, decisionOutputDimension], 0, 0.5)
     const B2 = tf.randomUniform([decisionOutputDimension], -0.5, 0.5)
     model.add(tf.layers.dense({units: decisionOutputDimension, inputShape: [15], weights: [A2, B2], activation: 'relu'}))
-    model.add(tf.layers.softmax())
 
 
     console.log(model)
@@ -106,12 +105,12 @@ export class Muscle extends CANNON.Spring {
     normalRestLength: number
     currentContraction: number = 1
     minimumContraction = 0
-    maximumContraction = 2
+    maximumContraction = 2.0
     isFront: boolean;
     setContraction(factor: number) {
       const factorConstrained = Math.min(this.maximumContraction, Math.max(this.minimumContraction, factor))  
       this.restLength = this.normalRestLength * factorConstrained
-      this.currentContraction = factor;
+      this.currentContraction = factorConstrained;
     }
   
     constructor(bodyA: CANNON.Body, bodyB: CANNON.Body, isFront: boolean, options?: {
@@ -522,6 +521,15 @@ export class Buddy {
 
     getHeadPosition() : number | undefined {
       return this.bodies.at(8)?.position.y
+    }
+
+
+    setBrain(brain : Brain) {
+      this.brain = brain
+    }
+
+    getBrain() : Brain {
+      return this.brain
     }
   }
   
