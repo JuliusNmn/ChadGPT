@@ -22,6 +22,7 @@ export function q2q(v: CANNON.Quaternion) {
 export class Demo  {
   resources: Resource[] = []
   visuals: THREE.Object3D[] = []
+  visuals_map: Map<CANNON.Body, THREE.Object3D> = new Map()
   springs: THREE.Line[] = []
   scene: THREE.Scene 
   muscleTo3DLine: Map<Muscle, THREE.Line> = new Map()
@@ -70,8 +71,8 @@ export class Demo  {
     
     const floor = new CANNON.Body()
     floor.addShape(new CANNON.Box(new CANNON.Vec3(10,1,10)))
-    this.physics.world.addBody(floor)
-    this.addVisual(floor)
+    this.physics.addBody(floor)
+    this.addVisual(floor, "floor")
     plane.position.set(0,0.1,0);
     plane.rotation.x = -Math.PI / 2
     plane.receiveShadow = true
@@ -88,57 +89,54 @@ export class Demo  {
     // lllfc (lowerLeftLegFrontContraction)
     gui.add(this, "gravity", -50, 1, 0.01);
 
-    // Start the loop!
-    this.animate()
 
     // Attach listeners
     window.addEventListener('resize', this.resize)
     document.addEventListener('keypress', this.onKeyPress)
 
-    const buddy = new Buddy(3,
-      Math.PI / 2,
-      Math.PI * 2,
-      Math.PI / 8)
-      this.physics.buddy = (buddy)
-      buddy.bodies.forEach((body: CANNON.Body) => {
-      // Move the ragdoll up
-      const position = new CANNON.Vec3(0, 3, 0)
-      //let rotate = new CANNON.Quaternion(Math.PI, 0, 0)
-      body.quaternion.setFromEuler(-Math.PI * 0.5, 0, 0)
-      body.quaternion.vmult(body.position, body.position)
-      body.position.vadd(position, body.position)
-      
 
-      this.physics.world.addBody(body)
-      this.addVisual(body)
-    })
+    const buddy = this.physics.initializeBuddy()
+    this.physics.buddy = buddy
+    this.addSpringVisuals(buddy)
+    this.addVisuals(buddy.bodies, "buddy")
 
-    for (const muscle of buddy.muscleInterface.muscles) {
-        //create a blue LineBasicMaterial
-        const material = new THREE.LineBasicMaterial( { color: 0x000000, linewidth: 10 } )
-        const points = []
-        points.push( new THREE.Vector3( 0, 0, 0 ) )
-        points.push( new THREE.Vector3( 0, 0, 0 ) )
-
-        const geometry = new THREE.BufferGeometry().setFromPoints( points )
-        const line = new THREE.Line( geometry, material )
-        this.springs.push(line)
-        this.scene.add( line )
-        this.muscleTo3DLine.set(muscle, line)
-    }
-
-    buddy.constraints.forEach((constraint) => {
-      this.physics.world.addConstraint(constraint)
-    })
-
-    this.physics.world.addEventListener('postStep', () => {
+    this.physics.addEventListener('postStep', () => {
       for (const spring of buddy.muscleInterface.muscles) {
           spring.applyForce()
       }
     })
+
+    // Start the loop!
+    this.animate()
   }
 
-  addVisual(body: CANNON.Body) {
+  addSpringVisuals(buddy: Buddy){
+    for (const muscle of buddy.muscleInterface.muscles) {
+      //create a blue LineBasicMaterial
+      const material = new THREE.LineBasicMaterial( { color: 0x000000, linewidth: 10 } )
+      const points = []
+      points.push( new THREE.Vector3( 0, 0, 0 ) )
+      points.push( new THREE.Vector3( 0, 0, 0 ) )
+
+      const geometry = new THREE.BufferGeometry().setFromPoints( points )
+      const line = new THREE.Line( geometry, material )
+      this.springs.push(line)
+      this.scene.add( line )
+      this.muscleTo3DLine.set(muscle, line)
+  }
+  }
+
+
+  deleteVisuals(bodies: CANNON.Body[]){
+    for(let i = 0; i < bodies.length; i++){
+      const currBody = bodies.at(i)
+      if(currBody){
+        this.deleteVisual(currBody)
+      }
+    }
+  }
+
+  deleteVisual(body: CANNON.Body){
     if (!(body instanceof CANNON.Body)) {
       throw new Error('The argument passed to addVisual() is not a body')
     }
@@ -150,13 +148,40 @@ export class Demo  {
     // get the correspondant three.js mesh
     const mesh = this.bodyToMesh(body, material)
 
+    this.visuals_map.delete(body)
+    this.scene.remove(mesh)
+  }
+
+  addVisuals(bodies: CANNON.Body[], name: string){
+    for(let i = 0; i < bodies.length; i++){
+      const currBody = bodies.at(i)
+      if(currBody){
+        this.addVisual(currBody, name)
+      }
+    }
+  }
+
+  addVisual(body: CANNON.Body, name: string) {
+    if (!(body instanceof CANNON.Body)) {
+      throw new Error('The argument passed to addVisual() is not a body')
+    }
+
+    // if it's a particle paint it red, if it's a trigger paint it as green, otherwise just gray
+    const isParticle = body.shapes.every((s) => s instanceof CANNON.Particle)
+    const material = isParticle ? this.particleMaterial : body.isTrigger ? this.triggerMaterial : this.currentMaterial
+
+    // get the correspondant three.js mesh
+    const mesh = this.bodyToMesh(body, material)
+    mesh.name = name
+
     // enable shadows on every object
     mesh.traverse((child) => {
       child.castShadow = true
       child.receiveShadow = true
     })
 
-    this.physics.bodies.push(body)
+    //this.physics.bodies.push(body)
+    this.visuals_map.set(body, mesh)
     this.visuals.push(mesh)
 
     this.scene.add(mesh)
@@ -178,8 +203,8 @@ export class Demo  {
   
     const meshes = body.shapes.map((shape) => {
       const geometry = this.shapeToGeometry(shape)
-  
-      return new THREE.Mesh(geometry, material)
+      const createdMesh = new THREE.Mesh(geometry, material)
+      return createdMesh
     })
   
     meshes.forEach((mesh, i) => {
@@ -232,10 +257,18 @@ export class Demo  {
 
   animate = () => {
     requestAnimationFrame(this.animate)
-    this.physics.buddy?.brain.computeStep(this.physics.world.time)
+    this.physics.buddy?.brain.computeStep(this.physics.time)
     this.physics.update()
     this.updateVisuals()
     this.renderer.render(this.scene, this.camera)
+
+    if(this.physics.time > 5.0){
+      if(this.physics.buddy){
+        this.deleteVisuals(this.physics.buddy?.bodies)
+        this.physics.deleteBuddy()
+      }
+    }
+
   }
 
   
@@ -243,13 +276,17 @@ export class Demo  {
     // Copy position data into visuals
     for (let i = 0; i < this.physics.bodies.length; i++) {
       const body = this.physics.bodies[i]
-      const visual = this.visuals[i]
-      let position = body.interpolatedPosition
-      let quaternion = body.interpolatedQuaternion
-      visual.position.copy(v2v(position))
-      visual.quaternion.copy(q2q(quaternion))
-      
+      //const visual = this.visuals[i]
+      const visual = this.visuals_map.get(body)
+      if(visual){
+        let position = body.interpolatedPosition
+        let quaternion = body.interpolatedQuaternion
+        visual.position.copy(v2v(position))
+        visual.quaternion.copy(q2q(quaternion)) 
+      }
     }
+
+
     for (const [muscle, line] of this.muscleTo3DLine.entries()) {
       const pointA = muscle.bodyA.position.vadd(muscle.bodyA.quaternion.vmult( muscle.localAnchorA))
       const pointB = muscle.bodyB.position.vadd(muscle.bodyB.quaternion.vmult( muscle.localAnchorB))
@@ -258,7 +295,7 @@ export class Demo  {
       mat.color = new THREE.Color(1 - muscle.currentContraction, 0, muscle.currentContraction)
     }
 
-    this.physics.world.gravity = new CANNON.Vec3(0,this.gravity,0);//-9.81,0)
+    this.physics.gravity = new CANNON.Vec3(0,this.gravity,0);//-9.81,0)
     /*
     // Render contacts
     this.contactMeshCache.restart()

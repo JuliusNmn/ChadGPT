@@ -4,15 +4,52 @@ import { Buddy, Muscle } from './Buddy'
 
 
 
-export class Physics {
-    world: CANNON.World = new CANNON.World()
+export class Physics extends CANNON.World{
     bodies: CANNON.Body[] = []
     buddy: Buddy | undefined
     muscles: Muscle[] = []
     lastCallTime: number = 0
     constructor() {
-      this.world.gravity = new CANNON.Vec3(0,-0,0);//-9.81,0)
+      super()
+      this.gravity = new CANNON.Vec3(0,-0,0);//-9.81,0)
     }
+
+
+    deleteBuddy() {
+      const buddyBodies = this.buddy?.bodies
+      if(buddyBodies){
+        buddyBodies.forEach((body) => {
+          const index = this.bodies.indexOf(body)
+          if(index != -1){
+            this.removeBody(body)
+          }
+        })
+      }
+
+      this.buddy = undefined
+    }
+
+    initializeBuddy() : Buddy{
+      const buddy = new Buddy(3,
+        Math.PI / 2,
+        Math.PI * 2,
+        Math.PI / 8)
+      
+      buddy.bodies.forEach((body: CANNON.Body) => {
+        const position = new CANNON.Vec3(0, 3, 0)
+        body.quaternion.setFromEuler(-Math.PI * 0.5, 0, 0)
+        body.quaternion.vmult(body.position, body.position)
+        body.position.vadd(position, body.position)    
+        this.addBody(body)
+      })
+
+      buddy.constraints.forEach((constraint) => {
+        this.addConstraint(constraint)
+      })
+        
+      return buddy
+    }
+
   
     update = () => {
       // Step world
@@ -24,7 +61,7 @@ export class Physics {
       }
       if (!this.lastCallTime) {
         // last call time not saved, cant guess elapsed time. Take a simple step.
-        this.world.step(timeStep)
+        this.step(timeStep)
         this.lastCallTime = now
         return
       }
@@ -32,7 +69,7 @@ export class Physics {
       let timeSinceLastCall = now - this.lastCallTime
       
       let maxSubSteps = 20
-      this.world.step(timeStep, timeSinceLastCall, maxSubSteps)
+      this.step(timeStep, timeSinceLastCall, maxSubSteps)
   
       this.lastCallTime = now
       //TODO: This is unneccessary no?
@@ -44,11 +81,6 @@ export class Physics {
       } */
       
     }
-  
-  
-  
-    step() {
-        
-    }
+
   
   }
